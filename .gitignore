@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
+
+# Local Firebase credentials — not committed
+web-app/config.js
+
+# Local ESP32 secrets — not committed
+firmware/secrets.h

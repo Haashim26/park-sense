@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ParkSense – Smart Parking</title>
+  <meta charset="utf-8" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 100vh; }
+
+    /* Hide the default (cluttered) turn-by-turn panel — we show our own summary instead */
+    .leaflet-routing-container { display: none; }
+
+    .route-summary {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      padding: 12px 16px;
+      font-family: Arial, sans-serif;
+      display: none;
+      min-width: 180px;
+    }
+    .route-summary .title { font-weight: bold; margin-bottom: 6px; color: #0d6efd; }
+    .route-summary .stat { font-size: 14px; margin: 2px 0; }
+    .route-summary .clear-btn {
+      margin-top: 8px;
+      background: #f1f1f1;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      width: 100%;
+    }
+    .route-summary .clear-btn:hover { background: #e0e0e0; }
+
+    .status-box {
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      display: inline-block;
+      margin: 4px 0;
+    }
+    .free { background: #d4f8d4; color: #1b7a1b; }
+    .full { background: #ffd6d6; color: #9b1c1c; }
+
+    .recommend {
+      margin-top: 8px;
+      padding: 6px;
+      background: #fff3cd;
+      color: #856404;
+      border-radius: 6px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .navigate-btn {
+      margin-top: 10px;
+      padding: 10px;
+      background: #0d6efd;
+      color: white;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      width: 100%;
+      border: none;
+      font-size: 15px;
+    }
+    .navigate-btn:hover {
+      background: #084298;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="route-summary" id="routeSummary">
+  <div class="title">🧭 Route</div>
+  <div class="stat" id="routeDistance"></div>
+  <div class="stat" id="routeTime"></div>
+  <button class="clear-btn" onclick="clearRoute()">✕ Clear Route</button>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+<script src="config.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // 🔥 Firebase config — loaded from config.js (gitignored, not committed).
+  // Copy config.example.js to config.js and fill in your credentials.
+  const firebaseConfig = window.FIREBASE_CONFIG;
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // 🗺️ Map
+  const map = L.map("map").setView([13.06, 80.25], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+  // 📍 User location — real browser geolocation, falls back to a default point if denied/unavailable
+  let userLocation = { lat: 13.0600, lng: 80.2500 }; // fallback default
+  let userMarker = null;
+  let routingControl = null;
+
+  function placeUserMarker() {
+    if (userMarker) userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+    else {
+      userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
+        radius: 8, color: "#0066ff", fillColor: "#3399ff", fillOpacity: 0.9
+      }).addTo(map).bindPopup("📍 You are here");
+    }
+  }
+  placeUserMarker();
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        placeUserMarker();
+        map.setView([userLocation.lat, userLocation.lng], 13);
+      },
+      () => { /* permission denied or unavailable — keep fallback location silently */ },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+
+  // 🧭 Draw an in-app route from the user to a parking area (called from popup button)
+  window.startRoute = function (lat, lng, name) {
+    if (routingControl) map.removeControl(routingControl);
+
+    routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(userLocation.lat, userLocation.lng),
+        L.latLng(lat, lng)
+      ],
+      routeWhileDragging: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+      show: false,
+      lineOptions: { styles: [{ color: "#0d6efd", weight: 5, opacity: 0.85 }] },
+      createMarker: () => null // we already show our own markers; avoid duplicate pins
+    }).addTo(map);
+
+    routingControl.on("routesfound", e => {
+      const r = e.routes[0];
+      document.getElementById("routeDistance").textContent =
+        `📏 ${(r.summary.totalDistance / 1000).toFixed(1)} km`;
+      document.getElementById("routeTime").textContent =
+        `⏱️ ${Math.round(r.summary.totalTime / 60)} min`;
+      document.getElementById("routeSummary").style.display = "block";
+    });
+
+    routingControl.on("routingerror", () => {
+      document.getElementById("routeDistance").textContent = "⚠️ Route unavailable";
+      document.getElementById("routeTime").textContent = "Try again shortly";
+      document.getElementById("routeSummary").style.display = "block";
+    });
+
+    map.closePopup();
+  };
+
+  window.clearRoute = function () {
+    if (routingControl) {
+      map.removeControl(routingControl);
+      routingControl = null;
+    }
+    document.getElementById("routeSummary").style.display = "none";
+  };
+
+  // 🧮 Distance function
+  function distance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) ** 2;
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+  // Marker icons
+  const greenIcon  = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",  iconSize:[32,32], iconAnchor:[16,32] });
+  const redIcon    = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",    iconSize:[32,32], iconAnchor:[16,32] });
+  const yellowIcon = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png", iconSize:[32,32], iconAnchor:[16,32] });
+
+  const markers = {};
+
+  onValue(ref(db, "parkingAreas"), snapshot => {
+    const areas = snapshot.val();
+    if (!areas) return;
+
+    let nearestAreaId = null;
+    let nearestDistance = Infinity;
+
+    // 🔍 Find nearest available area
+    for (const areaId in areas) {
+      const area = areas[areaId];
+      if (!area.lat || !area.lng || !area.slots) continue;
+
+      const hasFree = Object.values(area.slots).some(s => s.status === "free");
+      if (!hasFree) continue;
+
+      const d = distance(userLocation.lat, userLocation.lng, area.lat, area.lng);
+      if (d < nearestDistance) {
+        nearestDistance = d;
+        nearestAreaId = areaId;
+      }
+    }
+
+    // 📍 Render markers
+    for (const areaId in areas) {
+      const area = areas[areaId];
+      if (!area.lat || !area.lng || !area.slots) continue;
+
+      let counts = {
+        bike: { free: 0, total: 0 },
+        car:  { free: 0, total: 0 },
+        van:  { free: 0, total: 0 }
+      };
+
+      for (const s in area.slots) {
+        const slot = area.slots[s];
+        counts[slot.type].total++;
+        if (slot.status === "free") counts[slot.type].free++;
+      }
+
+      const anyFree = counts.bike.free || counts.car.free || counts.van.free;
+      const isNearest = areaId === nearestAreaId;
+
+      const popup = `
+        <b>${area.name || areaId}</b><br><br>
+
+        🏍️ Bike:
+        <div class="status-box ${counts.bike.free ? "free" : "full"}">
+          ${counts.bike.free ? "AVAILABLE" : "FULL"} (${counts.bike.free}/${counts.bike.total})
+        </div><br>
+
+        🚗 Car:
+        <div class="status-box ${counts.car.free ? "free" : "full"}">
+          ${counts.car.free ? "AVAILABLE" : "FULL"} (${counts.car.free}/${counts.car.total})
+        </div><br>
+
+        🚐 Van:
+        <div class="status-box ${counts.van.free ? "free" : "full"}">
+          ${counts.van.free ? "AVAILABLE" : "FULL"} (${counts.van.free}/${counts.van.total})
+        </div>
+
+        ${isNearest ? `<div class="recommend">⭐ RECOMMENDED (Nearest Available)</div>` : ""}
+
+        <button class="navigate-btn" onclick="startRoute(${area.lat}, ${area.lng}, '${(area.name || areaId).replace(/'/g, "")}')">
+          🧭 Go
+        </button>
+      `;
+
+      const icon = isNearest ? yellowIcon : (anyFree ? greenIcon : redIcon);
+
+      if (!markers[areaId]) {
+        markers[areaId] = L.marker([area.lat, area.lng], { icon })
+          .addTo(map)
+          .bindPopup(popup);
+      } else {
+        markers[areaId]
+          .setLatLng([area.lat, area.lng])
+          .setIcon(icon)
+          .setPopupContent(popup);
+      }
+    }
+  });
+</script>
+
+</body>
+</html>

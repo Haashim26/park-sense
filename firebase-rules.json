@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "parkingAreas": {
+      "$area": {
+        "slots": {
+          "$slot": {
+            "status": {
+              ".read": true,
+              ".write": "auth != null",
+              ".validate": "newData.isString() && (newData.val() == 'free' || newData.val() == 'occupied')"
+            },
+            "type": {
+              ".read": true,
+              ".write": "auth != null",
+              ".validate": "newData.isString() && (newData.val() == 'bike' || newData.val() == 'car' || newData.val() == 'van')"
+            },
+            ".read": true,
+            ".write": "auth != null"
+          }
+        },
+        ".read": true,
+        ".write": false
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

@@ -1,0 +1,3 @@
+[build]
+  command = "sh scripts/generate-config.sh"
+  publish = "web-app"
