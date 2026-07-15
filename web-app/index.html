@@ -3,93 +3,302 @@
 <head>
   <title>ParkSense – Smart Parking</title>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
 
+  <!-- Fonts: Rajdhani (technical/signage display face), Inter (body), IBM Plex Mono (live data readouts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
   <style>
-    body { margin: 0; font-family: Arial, sans-serif; }
+    :root {
+      --navy: #16202B;
+      --navy-soft: #232F3B;
+      --amber: #F2A93B;
+      --amber-dark: #C97F1E;
+      --green: #1F9D55;
+      --green-bg: #E4F7EC;
+      --red: #D64545;
+      --red-bg: #FCE8E8;
+      --line: #E7E2D8;
+      --text-muted: #5B6672;
+      --panel-bg: #FFFFFF;
+
+      --font-display: 'Rajdhani', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+
+      --radius: 14px;
+      --shadow: 0 4px 20px rgba(22, 32, 43, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); color: var(--navy); }
     #map { height: 100vh; }
 
     /* Hide the default (cluttered) turn-by-turn panel — we show our own summary instead */
     .leaflet-routing-container { display: none; }
 
+    /* 🅿️ Top brand bar */
+    .topbar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      background: linear-gradient(to bottom, rgba(22,32,43,0.85), rgba(22,32,43,0));
+      pointer-events: none;
+    }
+    .topbar .brand {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+      color: white;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .topbar .brand .p {
+      color: var(--amber);
+    }
+
+    /* 🚗 Live speed HUD badge — the signature element, styled like a car speedometer */
+    .speed-badge {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 1000;
+      background: var(--navy);
+      color: var(--amber);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 15px;
+      box-shadow: var(--shadow);
+      display: none;
+      align-items: baseline;
+      gap: 6px;
+      letter-spacing: 0.5px;
+    }
+    .speed-badge .value { font-size: 20px; }
+    .speed-badge .unit { font-size: 11px; color: rgba(242,169,59,0.7); font-family: var(--font-body); }
+
     .route-summary {
       position: absolute;
-      top: 12px;
-      right: 12px;
+      top: 68px;
+      right: 14px;
       z-index: 1000;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      padding: 12px 16px;
-      font-family: Arial, sans-serif;
+      background: var(--panel-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
       display: none;
-      min-width: 180px;
+      min-width: 210px;
+      max-width: 270px;
+      border: 1px solid var(--line);
     }
-    .route-summary .title { font-weight: bold; margin-bottom: 6px; color: #0d6efd; }
-    .route-summary .stat { font-size: 14px; margin: 2px 0; }
+    .route-summary .title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 17px;
+      margin-bottom: 8px;
+      color: var(--navy);
+      letter-spacing: 0.3px;
+    }
+    .route-summary .stat {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      margin: 3px 0;
+      color: var(--navy);
+    }
+    .route-summary .live-eta {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      margin: 3px 0;
+      color: var(--amber-dark);
+      font-weight: 600;
+      display: none;
+    }
+    .route-summary .vehicle-etas {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .route-summary .alt-note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+      font-family: var(--font-body);
+    }
+    .route-summary .start-nav-btn {
+      margin-top: 12px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 9px;
+      padding: 10px 10px;
+      cursor: pointer;
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .route-summary .start-nav-btn:hover { background: #17803F; }
     .route-summary .clear-btn {
       margin-top: 8px;
-      background: #f1f1f1;
-      border: none;
-      border-radius: 6px;
-      padding: 6px 10px;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-muted);
+      border-radius: 9px;
+      padding: 7px 10px;
       cursor: pointer;
+      font-family: var(--font-body);
       font-size: 13px;
       width: 100%;
+      transition: background 0.15s;
     }
-    .route-summary .clear-btn:hover { background: #e0e0e0; }
+    .route-summary .clear-btn:hover { background: #f5f3ee; }
+
+    .nav-banner {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: var(--navy);
+      color: white;
+      border-radius: var(--radius);
+      padding: 14px 22px;
+      display: none;
+      min-width: 280px;
+      max-width: 90vw;
+      text-align: center;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(242,169,59,0.25);
+    }
+    .nav-banner .instruction {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .nav-banner .live-eta-nav {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--amber);
+      margin-top: 4px;
+      display: none;
+    }
+    .nav-banner .stop-nav-btn {
+      margin-top: 10px;
+      background: var(--red);
+      color: white;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 16px;
+      cursor: pointer;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .nav-banner .stop-nav-btn:hover { background: #B53838; }
 
     .status-box {
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-weight: bold;
+      padding: 5px 10px;
+      border-radius: 7px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
       display: inline-block;
       margin: 4px 0;
+      letter-spacing: 0.3px;
     }
-    .free { background: #d4f8d4; color: #1b7a1b; }
-    .full { background: #ffd6d6; color: #9b1c1c; }
+    .free { background: var(--green-bg); color: var(--green); }
+    .full { background: var(--red-bg); color: var(--red); }
 
     .recommend {
-      margin-top: 8px;
-      padding: 6px;
-      background: #fff3cd;
-      color: #856404;
-      border-radius: 6px;
-      font-weight: bold;
+      margin-top: 10px;
+      padding: 7px;
+      background: rgba(242,169,59,0.15);
+      color: var(--amber-dark);
+      border-radius: 8px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      font-size: 13px;
+      letter-spacing: 0.3px;
       text-align: center;
     }
 
     .navigate-btn {
-      margin-top: 10px;
+      margin-top: 12px;
       padding: 10px;
-      background: #0d6efd;
-      color: white;
-      border-radius: 8px;
+      background: var(--amber);
+      color: var(--navy);
+      border-radius: 9px;
       text-align: center;
-      font-weight: bold;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.3px;
       cursor: pointer;
       text-decoration: none;
       display: block;
       width: 100%;
       border: none;
-      font-size: 15px;
+      transition: background 0.15s;
     }
     .navigate-btn:hover {
-      background: #084298;
+      background: var(--amber-dark);
+      color: white;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px;
+      font-family: var(--font-body);
+    }
+    .leaflet-popup-content b {
+      font-family: var(--font-display);
+      font-size: 16px;
+      letter-spacing: 0.2px;
     }
   </style>
 </head>
 <body>
 
+<div class="topbar">
+  <div class="brand"><span class="p">🅿️</span> Park<span class="p">Sense</span></div>
+</div>
+
 <div id="map"></div>
+
+<div class="speed-badge" id="speedBadge">
+  <span class="value" id="speedValue">0</span><span class="unit">km/h</span>
+</div>
+
 <div class="route-summary" id="routeSummary">
   <div class="title">🧭 Route</div>
   <div class="stat" id="routeDistance"></div>
   <div class="stat" id="routeTime"></div>
+  <div class="live-eta" id="liveEta"></div>
+  <div class="vehicle-etas" id="vehicleEtas"></div>
+  <div class="alt-note" id="altRoutesNote"></div>
+  <button class="start-nav-btn" onclick="startNavigation()">▶ Start Navigation</button>
   <button class="clear-btn" onclick="clearRoute()">✕ Clear Route</button>
+</div>
+
+<div class="nav-banner" id="navBanner">
+  <div class="instruction" id="navInstructionText">—</div>
+  <div class="live-eta-nav" id="liveEtaNav"></div>
+  <button class="stop-nav-btn" onclick="stopNavigation()">■ Stop Navigation</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -125,7 +334,40 @@
   // 📍 User location — real browser geolocation, falls back to a default point if denied/unavailable
   let userLocation = { lat: 13.0600, lng: 80.2500 }; // fallback default
   let userMarker = null;
-  let routingControl = null;
+
+  // 🚀 Live speed tracking — uses GPS-reported speed where available (mostly mobile),
+  // falls back to calculating it from consecutive position updates on desktop/laptop.
+  let currentSpeedKmh = null;
+  let lastSpeedFix = null; // { lat, lng, time }
+  const speedSamples = []; // small rolling window to smooth out GPS jitter
+
+  function updateSpeed(pos) {
+    const now = Date.now();
+    let speedKmh = null;
+
+    if (typeof pos.coords.speed === "number" && pos.coords.speed >= 0) {
+      speedKmh = pos.coords.speed * 3.6; // m/s → km/h, direct from GPS
+    } else if (lastSpeedFix) {
+      const dKm = distance(lastSpeedFix.lat, lastSpeedFix.lng, pos.coords.latitude, pos.coords.longitude);
+      const dHours = (now - lastSpeedFix.time) / 3600000;
+      if (dHours > 0) speedKmh = dKm / dHours;
+    }
+    lastSpeedFix = { lat: pos.coords.latitude, lng: pos.coords.longitude, time: now };
+
+    if (speedKmh === null || speedKmh > 180 || speedKmh < 0) return; // ignore GPS glitches
+
+    speedSamples.push(speedKmh);
+    if (speedSamples.length > 4) speedSamples.shift();
+    currentSpeedKmh = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
+
+    const badge = document.getElementById("speedBadge");
+    if (currentSpeedKmh > 2) { // hide badge while stationary — not meaningful sitting still
+      document.getElementById("speedValue").textContent = Math.round(currentSpeedKmh);
+      badge.style.display = "flex";
+    } else {
+      badge.style.display = "none";
+    }
+  }
 
   function placeUserMarker() {
     if (userMarker) userMarker.setLatLng([userLocation.lat, userLocation.lng]);
@@ -138,61 +380,260 @@
   placeUserMarker();
 
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
+    // Continuous tracking (not one-shot) so live speed + nearest-area + in-progress
+    // navigation all stay accurate as the user actually moves.
+    navigator.geolocation.watchPosition(
       pos => {
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        updateSpeed(pos);
         placeUserMarker();
-        map.setView([userLocation.lat, userLocation.lng], 13);
-        if (latestAreas) renderAreas(latestAreas); // recompute nearest-area recommendation with real location
+        if (!hasCenteredMap) {
+          hasCenteredMap = true;
+          map.setView([userLocation.lat, userLocation.lng], 13);
+        }
+        if (latestAreas) renderAreas(latestAreas); // keep nearest-area recommendation current
+        if (activeNavRoute) checkNavProgress(activeNavRoute); // keep live nav in sync
       },
       () => { /* permission denied or unavailable — keep fallback location silently */ },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }
 
-  // 🧭 Draw an in-app route from the user to a parking area (called from popup button)
+  // 🧭 Routing — using the raw OSRM router (not the full L.Routing.control UI) so we
+  // have full control over alternate routes, per-vehicle ETA, and live turn-by-turn nav.
+  // Uses OSRM's free public server — no API key, but no real-time traffic data either
+  // (ETAs are distance/speed estimates, not traffic-aware like Google).
+  const osrmRouter = L.Routing.osrmv1({
+    serviceUrl: "https://router.project-osrm.org/route/v1",
+    profile: "driving",
+    alternatives: true
+  });
+
+  // Assumed average speeds (km/h) — used to estimate ETA per vehicle type,
+  // since OSRM only returns a single generic driving time.
+  const VEHICLE_SPEEDS = { bike: 25, car: 35, van: 30 };
+
+  let routeLayers = [];      // polylines for all found routes (primary + alternates)
+  let foundRoutes = [];      // raw route data from OSRM
+  let selectedRouteIndex = 0;
+  let activeNavRoute = null; // set while "Start Navigation" is active; read by the continuous location watcher
+  let navCurrentStepIndex = 0;
+  let hasCenteredMap = false;
+
+  function formatInstruction(instr) {
+    if (!instr) return "Continue";
+    if (instr.text) return instr.text;
+    const road = instr.road ? ` onto ${instr.road}` : "";
+    const type = (instr.type || "Continue").replace(/([A-Z])/g, " $1").trim();
+    return `${type}${road}`;
+  }
+
+  // 🧭 Entry point — called from a parking-area popup's "Go" button
   window.startRoute = function (lat, lng, name) {
-    if (routingControl) map.removeControl(routingControl);
-
-    routingControl = L.Routing.control({
-      waypoints: [
-        L.latLng(userLocation.lat, userLocation.lng),
-        L.latLng(lat, lng)
-      ],
-      routeWhileDragging: false,
-      addWaypoints: false,
-      draggableWaypoints: false,
-      fitSelectedRoutes: true,
-      show: false,
-      lineOptions: { styles: [{ color: "#0d6efd", weight: 5, opacity: 0.85 }] },
-      createMarker: () => null // we already show our own markers; avoid duplicate pins
-    }).addTo(map);
-
-    routingControl.on("routesfound", e => {
-      const r = e.routes[0];
-      document.getElementById("routeDistance").textContent =
-        `📏 ${(r.summary.totalDistance / 1000).toFixed(1)} km`;
-      document.getElementById("routeTime").textContent =
-        `⏱️ ${Math.round(r.summary.totalTime / 60)} min`;
-      document.getElementById("routeSummary").style.display = "block";
+    clearRoute();
+    const waypoints = [
+      L.latLng(userLocation.lat, userLocation.lng),
+      L.latLng(lat, lng)
+    ];
+    osrmRouter.route(waypoints, (err, routes) => {
+      if (err || !routes || !routes.length) {
+        document.getElementById("routeDistance").textContent = "⚠️ Route unavailable";
+        document.getElementById("routeTime").textContent = "Try again shortly";
+        document.getElementById("vehicleEtas").innerHTML = "";
+        document.getElementById("routeSummary").style.display = "block";
+        return;
+      }
+      foundRoutes = routes;
+      drawRoutes(routes);
+      selectRoute(0);
     });
-
-    routingControl.on("routingerror", () => {
-      document.getElementById("routeDistance").textContent = "⚠️ Route unavailable";
-      document.getElementById("routeTime").textContent = "Try again shortly";
-      document.getElementById("routeSummary").style.display = "block";
-    });
-
     map.closePopup();
   };
 
+  function drawRoutes(routes) {
+    routeLayers.forEach(l => map.removeLayer(l));
+    routeLayers = [];
+
+    routes.forEach((route, i) => {
+      const style = i === 0
+        ? { color: "#0d6efd", weight: 6, opacity: 0.9 }
+        : { color: "#9aa0a6", weight: 4, opacity: 0.6, dashArray: "6,8" };
+      const line = L.polyline(route.coordinates, style).addTo(map);
+      line.on("click", () => selectRoute(i));
+      routeLayers.push(line);
+    });
+
+    map.fitBounds(L.latLngBounds(routes[0].coordinates), { padding: [40, 40] });
+  }
+
+  function selectRoute(index) {
+    selectedRouteIndex = index;
+    navCurrentStepIndex = 0;
+
+    routeLayers.forEach((line, i) => {
+      if (i === index) {
+        line.setStyle({ color: "#0d6efd", weight: 6, opacity: 0.9, dashArray: null });
+        line.bringToFront();
+      } else {
+        line.setStyle({ color: "#9aa0a6", weight: 4, opacity: 0.6, dashArray: "6,8" });
+      }
+    });
+
+    showRouteSummary(foundRoutes[index], foundRoutes.length);
+  }
+
+  function showRouteSummary(route, totalAlternatives) {
+    const km = route.summary.totalDistance / 1000;
+
+    document.getElementById("routeDistance").textContent = `📏 ${km.toFixed(1)} km`;
+    document.getElementById("routeTime").textContent =
+      `⏱️ ${Math.round(route.summary.totalTime / 60)} min (drive estimate)`;
+
+    const etaRows = Object.entries(VEHICLE_SPEEDS).map(([vehicle, speed]) => {
+      const mins = Math.round((km / speed) * 60);
+      const icon = vehicle === "bike" ? "🏍️" : vehicle === "car" ? "🚗" : "🚐";
+      const label = vehicle.charAt(0).toUpperCase() + vehicle.slice(1);
+      return `<div class="stat">${icon} ${label}: ~${mins} min</div>`;
+    }).join("");
+    document.getElementById("vehicleEtas").innerHTML = etaRows;
+
+    document.getElementById("altRoutesNote").textContent =
+      totalAlternatives > 1
+        ? `${totalAlternatives} routes found — click a gray route on the map to switch`
+        : "";
+
+    document.getElementById("routeSummary").style.display = "block";
+  }
+
   window.clearRoute = function () {
-    if (routingControl) {
-      map.removeControl(routingControl);
-      routingControl = null;
-    }
+    routeLayers.forEach(l => map.removeLayer(l));
+    routeLayers = [];
+    foundRoutes = [];
     document.getElementById("routeSummary").style.display = "none";
+    stopNavigation();
   };
+
+  // 🔊 Live turn-by-turn navigation — voice + visual, no Google API needed.
+  // Uses the browser's built-in Web Speech API; location tracking piggybacks on
+  // the single continuous geolocation watcher set up above.
+  window.startNavigation = function () {
+    if (!foundRoutes.length) return;
+    activeNavRoute = foundRoutes[selectedRouteIndex];
+    navCurrentStepIndex = 0;
+
+    document.getElementById("navBanner").style.display = "block";
+    updateNavBanner(activeNavRoute.instructions[0]);
+    speakInstruction(activeNavRoute.instructions[0]);
+  };
+
+  window.stopNavigation = function () {
+    activeNavRoute = null;
+    document.getElementById("navBanner").style.display = "none";
+    document.getElementById("liveEtaNav").style.display = "none";
+    if (window.speechSynthesis) speechSynthesis.cancel();
+  };
+
+  function updateNavBanner(instr) {
+    document.getElementById("navInstructionText").textContent = formatInstruction(instr);
+  }
+
+  function speakInstruction(instr) {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(formatInstruction(instr)));
+  }
+
+  // Remaining distance along the route's own path (not straight-line) from the
+  // nearest point to the current position, through to the destination.
+  function remainingRouteDistanceKm(route) {
+    let nearestIndex = 0;
+    let nearestDist = Infinity;
+    route.coordinates.forEach((c, i) => {
+      const d = distance(userLocation.lat, userLocation.lng, c.lat, c.lng);
+      if (d < nearestDist) { nearestDist = d; nearestIndex = i; }
+    });
+
+    let km = 0;
+    for (let i = nearestIndex; i < route.coordinates.length - 1; i++) {
+      km += distance(
+        route.coordinates[i].lat, route.coordinates[i].lng,
+        route.coordinates[i + 1].lat, route.coordinates[i + 1].lng
+      );
+    }
+    return km;
+  }
+
+  // Updates the "at your current speed" ETA — shown both in the route-summary
+  // panel and in the live nav banner, driven by real GPS speed.
+  function updateLiveEta(route) {
+    const remainingKm = remainingRouteDistanceKm(route);
+
+    if (currentSpeedKmh && currentSpeedKmh > 2) {
+      const mins = Math.round((remainingKm / currentSpeedKmh) * 60);
+      const text = `🚀 At ${Math.round(currentSpeedKmh)} km/h now: ~${mins} min left`;
+
+      const summaryEl = document.getElementById("liveEta");
+      summaryEl.textContent = text;
+      summaryEl.style.display = "block";
+
+      const navEl = document.getElementById("liveEtaNav");
+      navEl.textContent = text;
+      navEl.style.display = "block";
+    } else {
+      document.getElementById("liveEta").style.display = "none";
+      document.getElementById("liveEtaNav").style.display = "none";
+    }
+  }
+
+  function checkNavProgress(route) {
+    updateLiveEta(route);
+
+    const instructions = route.instructions;
+    if (!instructions || navCurrentStepIndex >= instructions.length) return;
+
+    // Advance to the next instruction once close to its maneuver point
+    const nextInstr = instructions[navCurrentStepIndex];
+    const stepCoord = route.coordinates[nextInstr.index];
+    if (stepCoord) {
+      const dMeters = distance(userLocation.lat, userLocation.lng, stepCoord.lat, stepCoord.lng) * 1000;
+      if (dMeters < 40) {
+        navCurrentStepIndex++;
+        if (navCurrentStepIndex < instructions.length) {
+          updateNavBanner(instructions[navCurrentStepIndex]);
+          speakInstruction(instructions[navCurrentStepIndex]);
+        } else {
+          updateNavBanner({ text: "You have arrived 🎉" });
+          speakInstruction({ text: "You have arrived at your destination" });
+          stopNavigation();
+          return;
+        }
+      }
+    }
+
+    // Basic off-route detection → recalculate from current position
+    let minDist = Infinity;
+    for (const c of route.coordinates) {
+      const d = distance(userLocation.lat, userLocation.lng, c.lat, c.lng) * 1000;
+      if (d < minDist) minDist = d;
+    }
+    if (minDist > 80) {
+      const destination = route.coordinates[route.coordinates.length - 1];
+      osrmRouter.route(
+        [L.latLng(userLocation.lat, userLocation.lng), L.latLng(destination.lat, destination.lng)],
+        (err, routes) => {
+          if (!err && routes && routes.length) {
+            foundRoutes = routes;
+            drawRoutes(routes);
+            selectRoute(0);
+            activeNavRoute = routes[0];
+            document.getElementById("navBanner").style.display = "block";
+            updateNavBanner(routes[0].instructions[0]);
+            speakInstruction({ text: "Recalculating route" });
+          }
+        }
+      );
+    }
+  }
 
   // 🧮 Distance function
   function distance(lat1, lon1, lat2, lon2) {
