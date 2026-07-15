@@ -387,10 +387,7 @@
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         updateSpeed(pos);
         placeUserMarker();
-        if (!hasCenteredMap) {
-          hasCenteredMap = true;
-          map.setView([userLocation.lat, userLocation.lng], 13);
-        }
+        fitMapToEverything();
         if (latestAreas) renderAreas(latestAreas); // keep nearest-area recommendation current
         if (activeNavRoute) checkNavProgress(activeNavRoute); // keep live nav in sync
       },
@@ -398,6 +395,28 @@
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }
+
+  // Fits the map to show BOTH the user's real location and all parking markers together —
+  // rather than blindly centering on just the user, which could push parking markers
+  // (e.g. in Chennai) completely off-screen if testing from somewhere far away.
+  let hasCenteredMap = false;
+  function fitMapToEverything(force) {
+    if (hasCenteredMap) return;
+    const points = [[userLocation.lat, userLocation.lng]];
+    if (latestAreas) {
+      for (const areaId in latestAreas) {
+        const area = latestAreas[areaId];
+        if (area.lat && area.lng) points.push([area.lat, area.lng]);
+      }
+    }
+    // Wait until we have both the user's location and the parking areas, unless forced
+    // (fallback timeout below) — otherwise fit early with only one point and never revisit.
+    if (points.length > 1 || force) {
+      hasCenteredMap = true;
+      map.fitBounds(points, { padding: [60, 60], maxZoom: 14 });
+    }
+  }
+  setTimeout(() => fitMapToEverything(true), 5000); // fallback if one side never arrives
 
   // 🧭 Routing — using the raw OSRM router (not the full L.Routing.control UI) so we
   // have full control over alternate routes, per-vehicle ETA, and live turn-by-turn nav.
@@ -418,7 +437,6 @@
   let selectedRouteIndex = 0;
   let activeNavRoute = null; // set while "Start Navigation" is active; read by the continuous location watcher
   let navCurrentStepIndex = 0;
-  let hasCenteredMap = false;
 
   function formatInstruction(instr) {
     if (!instr) return "Continue";
@@ -432,8 +450,8 @@
   window.startRoute = function (lat, lng, name) {
     clearRoute();
     const waypoints = [
-      L.latLng(userLocation.lat, userLocation.lng),
-      L.latLng(lat, lng)
+      { latLng: L.latLng(userLocation.lat, userLocation.lng) },
+      { latLng: L.latLng(lat, lng) }
     ];
     osrmRouter.route(waypoints, (err, routes) => {
       if (err || !routes || !routes.length) {
@@ -619,7 +637,10 @@
     if (minDist > 80) {
       const destination = route.coordinates[route.coordinates.length - 1];
       osrmRouter.route(
-        [L.latLng(userLocation.lat, userLocation.lng), L.latLng(destination.lat, destination.lng)],
+        [
+          { latLng: L.latLng(userLocation.lat, userLocation.lng) },
+          { latLng: L.latLng(destination.lat, destination.lng) }
+        ],
         (err, routes) => {
           if (!err && routes && routes.length) {
             foundRoutes = routes;
@@ -662,6 +683,7 @@
     if (!areas) return;
     latestAreas = areas;
     renderAreas(areas);
+    fitMapToEverything();
   });
   }
 
