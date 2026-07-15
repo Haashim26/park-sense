@@ -42,6 +42,9 @@
     /* Hide the default (cluttered) turn-by-turn panel — we show our own summary instead */
     .leaflet-routing-container { display: none; }
 
+    /* Push Leaflet's zoom control down so it doesn't sit behind the brand bar */
+    .leaflet-control-container .leaflet-top { margin-top: 56px; }
+
     /* 🅿️ Top brand bar */
     .topbar {
       position: absolute;
@@ -69,7 +72,7 @@
     /* 🚗 Live speed HUD badge — the signature element, styled like a car speedometer */
     .speed-badge {
       position: absolute;
-      bottom: 20px;
+      bottom: 78px;
       left: 20px;
       z-index: 1000;
       background: var(--navy);
@@ -87,6 +90,104 @@
     }
     .speed-badge .value { font-size: 20px; }
     .speed-badge .unit { font-size: 11px; color: rgba(242,169,59,0.7); font-family: var(--font-body); }
+
+    /* 🗺️ Legend */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 999;
+      background: var(--panel-bg);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--navy);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .legend .row { display: flex; align-items: center; gap: 7px; }
+    .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+    /* 🔘 Floating round action buttons (recenter, feedback) */
+    .fab {
+      position: absolute;
+      z-index: 1000;
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: none;
+      background: var(--navy);
+      color: white;
+      font-size: 19px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s;
+    }
+    .fab:hover { transform: scale(1.08); }
+    .recenter-fab { bottom: 78px; right: 20px; }
+    .feedback-fab { bottom: 20px; right: 20px; background: var(--amber); color: var(--navy); }
+
+    /* 💬 Feedback modal */
+    .feedback-modal {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(22,32,43,0.55);
+      align-items: center;
+      justify-content: center;
+    }
+    .feedback-modal.open { display: flex; }
+    .feedback-modal-inner {
+      background: white;
+      border-radius: var(--radius);
+      padding: 22px;
+      width: 320px;
+      max-width: 88vw;
+      box-shadow: var(--shadow);
+    }
+    .feedback-modal-inner .title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 19px;
+      margin-bottom: 4px;
+    }
+    .feedback-modal-inner .subtitle {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .feedback-modal-inner textarea {
+      width: 100%;
+      min-height: 90px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      padding: 10px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      resize: vertical;
+    }
+    .feedback-modal-inner textarea:focus { outline: 2px solid var(--amber); border-color: transparent; }
+    .feedback-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .feedback-actions button {
+      flex: 1;
+      border-radius: 8px;
+      padding: 9px;
+      cursor: pointer;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+    }
+    .feedback-cancel { background: transparent; border: 1px solid var(--line) !important; color: var(--text-muted); }
+    .feedback-submit { background: var(--green); color: white; }
+    .feedback-status { margin-top: 8px; font-size: 13px; text-align: center; min-height: 16px; }
 
     .route-summary {
       position: absolute;
@@ -184,6 +285,12 @@
       box-shadow: var(--shadow);
       border: 1px solid rgba(242,169,59,0.25);
     }
+    .nav-banner .distance-to-turn {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 2px;
+    }
     .nav-banner .instruction {
       font-family: var(--font-display);
       font-size: 18px;
@@ -280,8 +387,30 @@
 
 <div id="map"></div>
 
+<div class="legend">
+  <div class="row"><span class="dot" style="background:#2ecc71"></span> Available</div>
+  <div class="row"><span class="dot" style="background:#e74c3c"></span> Full</div>
+  <div class="row"><span class="dot" style="background:#f1c40f"></span> Recommended</div>
+</div>
+
 <div class="speed-badge" id="speedBadge">
   <span class="value" id="speedValue">0</span><span class="unit">km/h</span>
+</div>
+
+<button class="fab recenter-fab" onclick="recenterMap()" title="Recenter map">🎯</button>
+<button class="fab feedback-fab" onclick="toggleFeedback()" title="Send feedback">💬</button>
+
+<div class="feedback-modal" id="feedbackModal">
+  <div class="feedback-modal-inner">
+    <div class="title">Send Feedback</div>
+    <div class="subtitle">Found a bug, or have an idea? Let us know.</div>
+    <textarea id="feedbackText" maxlength="500" placeholder="Tell us what you think..."></textarea>
+    <div class="feedback-actions">
+      <button class="feedback-cancel" onclick="toggleFeedback()">Cancel</button>
+      <button class="feedback-submit" onclick="submitFeedback()">Send</button>
+    </div>
+    <div class="feedback-status" id="feedbackStatus"></div>
+  </div>
 </div>
 
 <div class="route-summary" id="routeSummary">
@@ -296,6 +425,7 @@
 </div>
 
 <div class="nav-banner" id="navBanner">
+  <div class="distance-to-turn" id="navDistanceText"></div>
   <div class="instruction" id="navInstructionText">—</div>
   <div class="live-eta-nav" id="liveEtaNav"></div>
   <button class="stop-nav-btn" onclick="stopNavigation()">■ Stop Navigation</button>
@@ -307,7 +437,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   // 🗺️ Map — render this FIRST, so the page never goes fully blank even if Firebase fails below
   const map = L.map("map").setView([13.06, 80.25], 12);
@@ -388,6 +518,9 @@
         updateSpeed(pos);
         placeUserMarker();
         fitMapToEverything();
+        if (activeNavRoute) {
+          map.panTo([userLocation.lat, userLocation.lng]); // follow the user during turn-by-turn nav
+        }
         if (latestAreas) renderAreas(latestAreas); // keep nearest-area recommendation current
         if (activeNavRoute) checkNavProgress(activeNavRoute); // keep live nav in sync
       },
@@ -417,6 +550,66 @@
     }
   }
   setTimeout(() => fitMapToEverything(true), 5000); // fallback if one side never arrives
+
+  window.recenterMap = function () {
+    hasCenteredMap = false;
+    fitMapToEverything(true);
+  };
+
+  // ⏱️ Formats minutes as "45 min", "2h 15m", or "1d 4h" depending on scale
+  function formatDuration(mins) {
+    if (mins < 60) return `${Math.round(mins)} min`;
+    if (mins < 1440) {
+      const h = Math.floor(mins / 60);
+      const m = Math.round(mins % 60);
+      return `${h}h ${m}m`;
+    }
+    const d = Math.floor(mins / 1440);
+    const h = Math.round((mins % 1440) / 60);
+    return `${d}d ${h}h`;
+  }
+
+  // 📏 Formats meters as "120 m" or "1.4 km" depending on scale
+  function formatDistance(meters) {
+    if (meters < 1000) return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+
+  // 💬 Feedback — writes to a public, write-only "feedback" node (validated server-side
+  // via firebase-rules.json: non-empty, max 500 chars). Not readable by other visitors.
+  window.toggleFeedback = function () {
+    document.getElementById("feedbackModal").classList.toggle("open");
+    document.getElementById("feedbackStatus").textContent = "";
+  };
+
+  window.submitFeedback = function () {
+    const text = document.getElementById("feedbackText").value.trim();
+    const statusEl = document.getElementById("feedbackStatus");
+
+    if (!text) {
+      statusEl.style.color = "var(--red)";
+      statusEl.textContent = "Please write something first.";
+      return;
+    }
+    if (!db) {
+      statusEl.style.color = "var(--red)";
+      statusEl.textContent = "Feedback is unavailable right now.";
+      return;
+    }
+
+    set(push(ref(db, "feedback")), { message: text, timestamp: Date.now() })
+      .then(() => {
+        statusEl.style.color = "var(--green)";
+        statusEl.textContent = "Thanks for your feedback!";
+        document.getElementById("feedbackText").value = "";
+        setTimeout(() => toggleFeedback(), 1200);
+      })
+      .catch(err => {
+        console.error(err);
+        statusEl.style.color = "var(--red)";
+        statusEl.textContent = "Couldn't send — please try again.";
+      });
+  };
 
   // 🧭 Routing — using the raw OSRM router (not the full L.Routing.control UI) so we
   // have full control over alternate routes, per-vehicle ETA, and live turn-by-turn nav.
@@ -505,13 +698,13 @@
 
     document.getElementById("routeDistance").textContent = `📏 ${km.toFixed(1)} km`;
     document.getElementById("routeTime").textContent =
-      `⏱️ ${Math.round(route.summary.totalTime / 60)} min (drive estimate)`;
+      `⏱️ ${formatDuration(route.summary.totalTime / 60)} (drive estimate)`;
 
     const etaRows = Object.entries(VEHICLE_SPEEDS).map(([vehicle, speed]) => {
-      const mins = Math.round((km / speed) * 60);
+      const mins = (km / speed) * 60;
       const icon = vehicle === "bike" ? "🏍️" : vehicle === "car" ? "🚗" : "🚐";
       const label = vehicle.charAt(0).toUpperCase() + vehicle.slice(1);
-      return `<div class="stat">${icon} ${label}: ~${mins} min</div>`;
+      return `<div class="stat">${icon} ${label} (${speed} km/h avg): ~${formatDuration(mins)}</div>`;
     }).join("");
     document.getElementById("vehicleEtas").innerHTML = etaRows;
 
@@ -540,8 +733,15 @@
     navCurrentStepIndex = 0;
 
     document.getElementById("navBanner").style.display = "block";
-    updateNavBanner(activeNavRoute.instructions[0]);
-    speakInstruction(activeNavRoute.instructions[0]);
+    const firstInstr = activeNavRoute.instructions[0];
+    const firstCoord = activeNavRoute.coordinates[firstInstr.index];
+    const firstDist = firstCoord
+      ? distance(userLocation.lat, userLocation.lng, firstCoord.lat, firstCoord.lng) * 1000
+      : undefined;
+    updateNavBanner(firstInstr, firstDist);
+    speakInstruction(firstInstr);
+
+    map.setView([userLocation.lat, userLocation.lng], 17); // zoom in close for turn-by-turn
   };
 
   window.stopNavigation = function () {
@@ -551,8 +751,15 @@
     if (window.speechSynthesis) speechSynthesis.cancel();
   };
 
-  function updateNavBanner(instr) {
+  function updateNavBanner(instr, distMeters) {
     document.getElementById("navInstructionText").textContent = formatInstruction(instr);
+    const distEl = document.getElementById("navDistanceText");
+    if (typeof distMeters === "number") {
+      distEl.textContent = `In ${formatDistance(distMeters)}`;
+      distEl.style.display = "block";
+    } else {
+      distEl.style.display = "none";
+    }
   }
 
   function speakInstruction(instr) {
@@ -587,8 +794,8 @@
     const remainingKm = remainingRouteDistanceKm(route);
 
     if (currentSpeedKmh && currentSpeedKmh > 2) {
-      const mins = Math.round((remainingKm / currentSpeedKmh) * 60);
-      const text = `🚀 At ${Math.round(currentSpeedKmh)} km/h now: ~${mins} min left`;
+      const mins = (remainingKm / currentSpeedKmh) * 60;
+      const text = `🚀 At ${Math.round(currentSpeedKmh)} km/h now: ~${formatDuration(mins)} left`;
 
       const summaryEl = document.getElementById("liveEta");
       summaryEl.textContent = text;
@@ -609,16 +816,23 @@
     const instructions = route.instructions;
     if (!instructions || navCurrentStepIndex >= instructions.length) return;
 
-    // Advance to the next instruction once close to its maneuver point
+    // Live "in X m" countdown to the next maneuver, updated on every position tick
     const nextInstr = instructions[navCurrentStepIndex];
     const stepCoord = route.coordinates[nextInstr.index];
     if (stepCoord) {
       const dMeters = distance(userLocation.lat, userLocation.lng, stepCoord.lat, stepCoord.lng) * 1000;
+      updateNavBanner(nextInstr, dMeters);
+
       if (dMeters < 40) {
         navCurrentStepIndex++;
         if (navCurrentStepIndex < instructions.length) {
-          updateNavBanner(instructions[navCurrentStepIndex]);
-          speakInstruction(instructions[navCurrentStepIndex]);
+          const followingInstr = instructions[navCurrentStepIndex];
+          const followingCoord = route.coordinates[followingInstr.index];
+          const followingDist = followingCoord
+            ? distance(userLocation.lat, userLocation.lng, followingCoord.lat, followingCoord.lng) * 1000
+            : undefined;
+          updateNavBanner(followingInstr, followingDist);
+          speakInstruction(followingInstr);
         } else {
           updateNavBanner({ text: "You have arrived 🎉" });
           speakInstruction({ text: "You have arrived at your destination" });
