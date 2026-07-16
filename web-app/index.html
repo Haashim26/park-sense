@@ -229,6 +229,40 @@
       margin-top: 10px;
       padding-top: 10px;
       border-top: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .vehicle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .vehicle-row .v-icon {
+      font-size: 18px;
+      width: 22px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .vehicle-row .v-info { flex: 1; min-width: 0; }
+    .vehicle-row .v-label {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--navy);
+    }
+    .vehicle-row .v-sub {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+    .vehicle-row .v-time {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--amber-dark);
+      flex-shrink: 0;
+      text-align: right;
     }
     .route-summary .alt-note {
       margin-top: 8px;
@@ -319,18 +353,46 @@
     }
     .nav-banner .stop-nav-btn:hover { background: #B53838; }
 
-    .status-box {
-      padding: 5px 10px;
-      border-radius: 7px;
-      font-weight: 600;
-      font-family: var(--font-mono);
-      font-size: 12.5px;
-      display: inline-block;
-      margin: 4px 0;
-      letter-spacing: 0.3px;
+    .popup-body {
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      min-width: 190px;
     }
-    .free { background: var(--green-bg); color: var(--green); }
-    .full { background: var(--red-bg); color: var(--red); }
+    .popup-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .popup-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+    .popup-label {
+      font-family: var(--font-body);
+      font-size: 12.5px;
+      color: var(--navy);
+      width: 32px;
+      flex-shrink: 0;
+    }
+    .popup-bar-track {
+      flex: 1;
+      height: 8px;
+      background: #edeae2;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .popup-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .popup-count {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      width: 32px;
+      text-align: right;
+      flex-shrink: 0;
+    }
 
     .recommend {
       margin-top: 10px;
@@ -377,6 +439,45 @@
       font-size: 16px;
       letter-spacing: 0.2px;
     }
+
+    /* Custom pin markers — strip Leaflet's default divIcon white box/border */
+    .parksense-pin {
+      background: none !important;
+      border: none !important;
+    }
+    @keyframes pinPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.14); }
+    }
+
+    /* ⏳ Loading overlay — shown briefly while Firebase data + location resolve */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 3000;
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      transition: opacity 0.4s ease;
+    }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .loading-overlay .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid rgba(242,169,59,0.25);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .loading-overlay .loading-text {
+      font-family: var(--font-display);
+      color: white;
+      font-size: 16px;
+      letter-spacing: 0.3px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -386,6 +487,11 @@
 </div>
 
 <div id="map"></div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading ParkSense…</div>
+</div>
 
 <div class="legend">
   <div class="row"><span class="dot" style="background:#2ecc71"></span> Available</div>
@@ -631,12 +737,30 @@
   let activeNavRoute = null; // set while "Start Navigation" is active; read by the continuous location watcher
   let navCurrentStepIndex = 0;
 
-  function formatInstruction(instr) {
-    if (!instr) return "Continue";
-    if (instr.text) return instr.text;
+  // Builds plain directional phrasing ("Turn right onto NH44", "Continue straight") from
+  // the raw OSRM maneuver type — deliberately ignores any pre-baked compass-direction text
+  // like "Head west", which isn't how a driver actually wants instructions phrased.
+  function formatInstruction(instr, isFirst) {
+    if (!instr) return "Continue straight";
+
     const road = instr.road ? ` onto ${instr.road}` : "";
-    const type = (instr.type || "Continue").replace(/([A-Z])/g, " $1").trim();
-    return `${type}${road}`;
+    const type = (instr.type || "").toLowerCase();
+
+    if (isFirst) return `Start driving${road}`;
+    if (type.includes("sharpleft"))            return `Sharp left turn${road}`;
+    if (type.includes("sharpright"))           return `Sharp right turn${road}`;
+    if (type.includes("slightleft"))           return `Slight left${road}`;
+    if (type.includes("slightright"))          return `Slight right${road}`;
+    if (type.includes("left"))                 return `Turn left${road}`;
+    if (type.includes("right"))                return `Turn right${road}`;
+    if (type.includes("roundabout"))           return `Enter the roundabout${road}`;
+    if (type.includes("uturn") || type.includes("turnaround")) return "Make a U-turn";
+    if (type.includes("arrive") || type.includes("destination")) return "You have arrived at your destination";
+    if (type.includes("straight") || type.includes("continue") || type.includes("head")) return `Continue straight${road}`;
+
+    // Fallback: use the library's own text only if it's not a compass-direction phrase
+    if (instr.text && !/\b(north|south|east|west)\b/i.test(instr.text)) return instr.text;
+    return `Continue${road}`;
   }
 
   // 🧭 Entry point — called from a parking-area popup's "Go" button
@@ -704,7 +828,15 @@
       const mins = (km / speed) * 60;
       const icon = vehicle === "bike" ? "🏍️" : vehicle === "car" ? "🚗" : "🚐";
       const label = vehicle.charAt(0).toUpperCase() + vehicle.slice(1);
-      return `<div class="stat">${icon} ${label} (${speed} km/h avg): ~${formatDuration(mins)}</div>`;
+      return `
+        <div class="vehicle-row">
+          <div class="v-icon">${icon}</div>
+          <div class="v-info">
+            <div class="v-label">${label}</div>
+            <div class="v-sub">${speed} km/h avg</div>
+          </div>
+          <div class="v-time">${formatDuration(mins)}</div>
+        </div>`;
     }).join("");
     document.getElementById("vehicleEtas").innerHTML = etaRows;
 
@@ -738,8 +870,8 @@
     const firstDist = firstCoord
       ? distance(userLocation.lat, userLocation.lng, firstCoord.lat, firstCoord.lng) * 1000
       : undefined;
-    updateNavBanner(firstInstr, firstDist);
-    speakInstruction(firstInstr);
+    updateNavBanner(firstInstr, firstDist, true);
+    speakInstruction(firstInstr, true);
 
     map.setView([userLocation.lat, userLocation.lng], 17); // zoom in close for turn-by-turn
   };
@@ -751,8 +883,8 @@
     if (window.speechSynthesis) speechSynthesis.cancel();
   };
 
-  function updateNavBanner(instr, distMeters) {
-    document.getElementById("navInstructionText").textContent = formatInstruction(instr);
+  function updateNavBanner(instr, distMeters, isFirst) {
+    document.getElementById("navInstructionText").textContent = formatInstruction(instr, isFirst);
     const distEl = document.getElementById("navDistanceText");
     if (typeof distMeters === "number") {
       distEl.textContent = `In ${formatDistance(distMeters)}`;
@@ -762,10 +894,10 @@
     }
   }
 
-  function speakInstruction(instr) {
+  function speakInstruction(instr, isFirst) {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(formatInstruction(instr)));
+    speechSynthesis.speak(new SpeechSynthesisUtterance(formatInstruction(instr, isFirst)));
   }
 
   // Remaining distance along the route's own path (not straight-line) from the
@@ -862,7 +994,7 @@
             selectRoute(0);
             activeNavRoute = routes[0];
             document.getElementById("navBanner").style.display = "block";
-            updateNavBanner(routes[0].instructions[0]);
+            updateNavBanner(routes[0].instructions[0], undefined, true);
             speakInstruction({ text: "Recalculating route" });
           }
         }
@@ -883,13 +1015,35 @@
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   }
 
-  // Marker icons
-  const greenIcon  = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",  iconSize:[32,32], iconAnchor:[16,32] });
-  const redIcon    = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",    iconSize:[32,32], iconAnchor:[16,32] });
-  const yellowIcon = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png", iconSize:[32,32], iconAnchor:[16,32] });
+  // 📍 Custom pin markers — a proper teardrop shape with a "P" mark, matching the
+  // brand palette, replacing the generic default Google Maps dot icons.
+  function createPinIcon(color, pulse) {
+    const svg = `
+      <svg width="34" height="44" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17 0C7.6 0 0 7.6 0 17c0 12.4 17 27 17 27s17-14.6 17-27C34 7.6 26.4 0 17 0z" fill="${color}"/>
+        <circle cx="17" cy="17" r="9" fill="white"/>
+        <text x="17" y="22" font-family="Rajdhani, sans-serif" font-weight="700" font-size="13" fill="${color}" text-anchor="middle">P</text>
+      </svg>`;
+    return L.divIcon({
+      html: `<div style="filter: drop-shadow(0 3px 3px rgba(22,32,43,0.4));${pulse ? " animation: pinPulse 1.6s ease-in-out infinite;" : ""}">${svg}</div>`,
+      className: "parksense-pin",
+      iconSize: [34, 44],
+      iconAnchor: [17, 44],
+      popupAnchor: [0, -38]
+    });
+  }
+
+  const greenIcon  = createPinIcon("#2ecc71");
+  const redIcon    = createPinIcon("#e74c3c");
+  const yellowIcon = createPinIcon("#f1c40f", true); // pulses to draw the eye to the recommended pick
 
   const markers = {};
   let latestAreas = null; // cached so we can re-render when geolocation resolves after initial load
+
+  function hideLoadingOverlay() {
+    document.getElementById("loadingOverlay").classList.add("hidden");
+  }
+  setTimeout(hideLoadingOverlay, 6000); // fallback in case Firebase never responds
 
   if (db) {
   onValue(ref(db, "parkingAreas"), snapshot => {
@@ -898,7 +1052,10 @@
     latestAreas = areas;
     renderAreas(areas);
     fitMapToEverything();
+    hideLoadingOverlay();
   });
+  } else {
+    hideLoadingOverlay(); // Firebase failed to init — don't leave the user stuck on a loading screen
   }
 
   function renderAreas(areas) {
@@ -941,22 +1098,24 @@
       const anyFree = counts.bike.free || counts.car.free || counts.van.free;
       const isNearest = areaId === nearestAreaId;
 
+      const occupancyRow = (icon, label, c) => {
+        const pct = c.total > 0 ? Math.round((c.free / c.total) * 100) : 0;
+        const barColor = c.free > 0 ? "#2ecc71" : "#e74c3c";
+        return `
+          <div class="popup-row">
+            <span class="popup-icon">${icon}</span>
+            <span class="popup-label">${label}</span>
+            <div class="popup-bar-track"><div class="popup-bar-fill" style="width:${pct}%; background:${barColor}"></div></div>
+            <span class="popup-count">${c.free}/${c.total}</span>
+          </div>`;
+      };
+
       const popup = `
-        <b>${area.name || areaId}</b><br><br>
-
-        🏍️ Bike:
-        <div class="status-box ${counts.bike.free ? "free" : "full"}">
-          ${counts.bike.free ? "AVAILABLE" : "FULL"} (${counts.bike.free}/${counts.bike.total})
-        </div><br>
-
-        🚗 Car:
-        <div class="status-box ${counts.car.free ? "free" : "full"}">
-          ${counts.car.free ? "AVAILABLE" : "FULL"} (${counts.car.free}/${counts.car.total})
-        </div><br>
-
-        🚐 Van:
-        <div class="status-box ${counts.van.free ? "free" : "full"}">
-          ${counts.van.free ? "AVAILABLE" : "FULL"} (${counts.van.free}/${counts.van.total})
+        <b>${area.name || areaId}</b>
+        <div class="popup-body">
+          ${occupancyRow("🏍️", "Bike", counts.bike)}
+          ${occupancyRow("🚗", "Car", counts.car)}
+          ${occupancyRow("🚐", "Van", counts.van)}
         </div>
 
         ${isNearest ? `<div class="recommend">⭐ RECOMMENDED (Nearest Available)</div>` : ""}

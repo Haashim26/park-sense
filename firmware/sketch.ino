@@ -4,7 +4,11 @@
 
 // Buttons for 5 slots
 int buttonPins[5] = {14, 27, 26, 25, 33};
+int ledPins[5]    = {18, 19, 23, 5, 4};
 int slotState[5]  = {0, 0, 0, 0, 0}; // 0=free, 1=occupied
+
+unsigned long lastPress[5]   = {0, 0, 0, 0, 0};
+const unsigned long DEBOUNCE_MS = 400;
 
 WiFiClientSecure client;
 
@@ -55,6 +59,8 @@ void setup() {
 
   for (int i = 0; i < 5; i++) {
     pinMode(buttonPins[i], INPUT_PULLUP);
+    pinMode(ledPins[i], OUTPUT);
+    digitalWrite(ledPins[i], HIGH); // slots start FREE → LED on
   }
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -69,10 +75,13 @@ void setup() {
 
 void loop() {
   for (int i = 0; i < 5; i++) {
-    if (digitalRead(buttonPins[i]) == LOW) {
+    if (digitalRead(buttonPins[i]) == LOW && (millis() - lastPress[i] > DEBOUNCE_MS)) {
+      lastPress[i] = millis();
       slotState[i] = !slotState[i];
       sendToFirebase(i, slotState[i] ? "occupied" : "free");
-      delay(400); // debounce
+
+      // free (0) → LED on, occupied (1) → LED off
+      digitalWrite(ledPins[i], slotState[i] == 0 ? HIGH : LOW);
     }
   }
 }
