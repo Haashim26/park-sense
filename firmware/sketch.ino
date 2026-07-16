@@ -27,6 +27,25 @@ void sendToFirebase(int slot, String value) {
     Serial.print(slot + 1);
     Serial.print(" → ");
     Serial.println(value);
+
+    // Wait for and print the actual HTTP response so we can confirm success/failure
+    unsigned long timeout = millis();
+    while (client.connected() && !client.available()) {
+      if (millis() - timeout > 5000) {
+        Serial.println("  ⚠️ Response timed out");
+        client.stop();
+        return;
+      }
+    }
+    String statusLine = client.readStringUntil('\n');
+    Serial.print("  → Firebase response: ");
+    Serial.println(statusLine);
+
+    if (statusLine.indexOf("200") == -1) {
+      Serial.println("  ⚠️ Write likely FAILED — check secret/rules");
+    }
+  } else {
+    Serial.println("  ⚠️ Could not connect to Firebase host");
   }
   client.stop();
 }
