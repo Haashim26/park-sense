@@ -52,10 +52,9 @@
       z-index: 1000;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 14px;
       padding: 12px 18px;
-      background: linear-gradient(to bottom, rgba(22,32,43,0.85), rgba(22,32,43,0));
-      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(22,32,43,0.9), rgba(22,32,43,0.5) 80%, rgba(22,32,43,0));
     }
     .topbar .brand {
       font-family: var(--font-display);
@@ -64,9 +63,64 @@
       letter-spacing: 0.5px;
       color: white;
       text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      flex-shrink: 0;
     }
     .topbar .brand .p {
       color: var(--amber);
+    }
+
+    /* 🔍 Search bar */
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 360px;
+    }
+    .search-wrap input {
+      width: 100%;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 16px;
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      background: rgba(255,255,255,0.95);
+      color: var(--navy);
+      box-shadow: var(--shadow);
+    }
+    .search-wrap input:focus { outline: 2px solid var(--amber); }
+    .search-wrap input::placeholder { color: var(--text-muted); }
+    .search-results {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--panel-bg);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .search-result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      border-bottom: 1px solid var(--line);
+    }
+    .search-result-row:last-child { border-bottom: none; }
+    .search-result-row:hover { background: #f5f3ee; }
+    .search-result-row .sr-icon { flex-shrink: 0; }
+    .search-result-row .sr-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .search-loading, .search-empty {
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text-muted);
     }
 
     /* 🚗 Live speed HUD badge — the signature element, styled like a car speedometer */
@@ -132,6 +186,97 @@
     .fab:hover { transform: scale(1.08); }
     .recenter-fab { bottom: 78px; right: 20px; }
     .feedback-fab { bottom: 20px; right: 20px; background: var(--amber); color: var(--navy); }
+    .areas-fab { bottom: 136px; right: 20px; }
+
+    /* 📋 Nearby areas panel */
+    .areas-panel {
+      display: none;
+      position: absolute;
+      top: 68px;
+      left: 14px;
+      z-index: 1000;
+      background: var(--panel-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      width: 250px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    .areas-panel.open { display: block; }
+    .areas-panel-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 15px;
+      padding: 14px 16px 8px;
+      color: var(--navy);
+    }
+    .area-row {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-top: 1px solid var(--line);
+    }
+    .area-row:hover { background: #f5f3ee; }
+    .area-row-name {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13.5px;
+      color: var(--navy);
+      margin-bottom: 3px;
+    }
+    .area-row-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .area-row-dist {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+    .area-row-free {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+    .area-row-free.ok { background: var(--green-bg); color: var(--green); }
+    .area-row-free.full { background: var(--red-bg); color: var(--red); }
+    .areas-empty { padding: 14px 16px; font-size: 13px; color: var(--text-muted); }
+
+    /* 🅿️ Live destination status — shown in route-summary and nav-banner while
+       a route/nav is active, so a slot taken by someone else mid-drive is visible */
+    .dest-status {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .dest-status-title {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .dest-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .dest-chip {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .dest-chip.ok { background: var(--green-bg); color: var(--green); }
+    .dest-chip.full { background: var(--red-bg); color: var(--red); }
+
+    .nav-dest-status {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
 
     /* 💬 Feedback modal */
     .feedback-modal {
@@ -387,12 +532,16 @@
     }
     .popup-count {
       font-family: var(--font-mono);
-      font-size: 11.5px;
-      color: var(--text-muted);
-      width: 32px;
+      font-size: 12.5px;
+      font-weight: 700;
+      width: 60px;
       text-align: right;
       flex-shrink: 0;
+      padding: 2px 6px;
+      border-radius: 6px;
     }
+    .popup-count.ok { background: var(--green-bg); color: var(--green); }
+    .popup-count.full { background: var(--red-bg); color: var(--red); }
 
     .recommend {
       margin-top: 10px;
@@ -484,6 +633,11 @@
 
 <div class="topbar">
   <div class="brand"><span class="p">🅿️</span> Park<span class="p">Sense</span></div>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Search places or parking areas…"
+           onkeydown="if(event.key==='Enter') performSearch()">
+    <div class="search-results" id="searchResults"></div>
+  </div>
 </div>
 
 <div id="map"></div>
@@ -504,7 +658,13 @@
 </div>
 
 <button class="fab recenter-fab" onclick="recenterMap()" title="Recenter map">🎯</button>
+<button class="fab areas-fab" onclick="toggleAreasList()" title="Nearby parking areas">📋</button>
 <button class="fab feedback-fab" onclick="toggleFeedback()" title="Send feedback">💬</button>
+
+<div class="areas-panel" id="areasPanel">
+  <div class="areas-panel-title">Parking areas near you</div>
+  <div id="areasList"></div>
+</div>
 
 <div class="feedback-modal" id="feedbackModal">
   <div class="feedback-modal-inner">
@@ -526,6 +686,7 @@
   <div class="live-eta" id="liveEta"></div>
   <div class="vehicle-etas" id="vehicleEtas"></div>
   <div class="alt-note" id="altRoutesNote"></div>
+  <div class="dest-status" id="destStatus"></div>
   <button class="start-nav-btn" onclick="startNavigation()">▶ Start Navigation</button>
   <button class="clear-btn" onclick="clearRoute()">✕ Clear Route</button>
 </div>
@@ -534,6 +695,7 @@
   <div class="distance-to-turn" id="navDistanceText"></div>
   <div class="instruction" id="navInstructionText">—</div>
   <div class="live-eta-nav" id="liveEtaNav"></div>
+  <div class="nav-dest-status" id="navDestStatus"></div>
   <button class="stop-nav-btn" onclick="stopNavigation()">■ Stop Navigation</button>
 </div>
 
@@ -627,7 +789,7 @@
         if (activeNavRoute) {
           map.panTo([userLocation.lat, userLocation.lng]); // follow the user during turn-by-turn nav
         }
-        if (latestAreas) renderAreas(latestAreas); // keep nearest-area recommendation current
+        if (latestAreas) { renderAreas(latestAreas); renderAreasList(latestAreas); } // keep nearest-area recommendation + distances current
         if (activeNavRoute) checkNavProgress(activeNavRoute); // keep live nav in sync
       },
       () => { /* permission denied or unavailable — keep fallback location silently */ },
@@ -661,6 +823,125 @@
     hasCenteredMap = false;
     fitMapToEverything(true);
   };
+
+  // 🔍 Search — checks local parking area names first, then falls back to
+  // OpenStreetMap's free Nominatim geocoder for general place search (no API key).
+  // Runs only on Enter/click (not per-keystroke) to stay light on the free service.
+  window.performSearch = async function () {
+    const query = document.getElementById("searchInput").value.trim();
+    const resultsEl = document.getElementById("searchResults");
+    if (!query) { resultsEl.style.display = "none"; return; }
+
+    resultsEl.innerHTML = `<div class="search-loading">Searching…</div>`;
+    resultsEl.style.display = "block";
+
+    const localMatches = [];
+    if (latestAreas) {
+      for (const areaId in latestAreas) {
+        const area = latestAreas[areaId];
+        const name = area.name || areaId;
+        if (name.toLowerCase().includes(query.toLowerCase()) && area.lat && area.lng) {
+          localMatches.push({ type: "area", areaId, name, lat: area.lat, lng: area.lng });
+        }
+      }
+    }
+
+    let placeMatches = [];
+    try {
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+      const data = await resp.json();
+      placeMatches = data.map(d => ({ type: "place", name: d.display_name, lat: parseFloat(d.lat), lng: parseFloat(d.lon) }));
+    } catch (err) {
+      console.error(err);
+    }
+
+    const allResults = [...localMatches, ...placeMatches];
+    window._searchResults = allResults;
+
+    if (!allResults.length) {
+      resultsEl.innerHTML = `<div class="search-empty">No results found.</div>`;
+      return;
+    }
+
+    resultsEl.innerHTML = allResults.map((r, i) => `
+      <div class="search-result-row" onclick="selectSearchResult(${i})">
+        <span class="sr-icon">${r.type === "area" ? "🅿️" : "📍"}</span>
+        <span class="sr-name">${r.name}</span>
+      </div>
+    `).join("");
+  };
+
+  window.selectSearchResult = function (i) {
+    const r = (window._searchResults || [])[i];
+    if (!r) return;
+    map.setView([r.lat, r.lng], 15);
+    if (r.type === "area" && markers[r.areaId]) markers[r.areaId].openPopup();
+    document.getElementById("searchResults").style.display = "none";
+    document.getElementById("searchInput").value = "";
+  };
+
+  // 📋 Nearby areas list — solves "markers are off-screen when zoomed into my
+  // own location" by surfacing every known area with live distance + availability,
+  // regardless of what's currently visible on the map.
+  window.toggleAreasList = function () {
+    document.getElementById("areasPanel").classList.toggle("open");
+  };
+
+  window.flyToArea = function (areaId, lat, lng) {
+    map.setView([lat, lng], 15);
+    if (markers[areaId]) markers[areaId].openPopup();
+    document.getElementById("areasPanel").classList.remove("open");
+  };
+
+  function renderAreasList(areas) {
+    if (!areas) return;
+    const rows = Object.entries(areas)
+      .filter(([id, a]) => a.lat && a.lng && a.slots)
+      .map(([id, a]) => {
+        const d = distance(userLocation.lat, userLocation.lng, a.lat, a.lng);
+        let free = 0, total = 0;
+        for (const s in a.slots) { total++; if (a.slots[s].status === "free") free++; }
+        return { id, name: a.name || id, lat: a.lat, lng: a.lng, dist: d, free, total };
+      })
+      .sort((a, b) => a.dist - b.dist);
+
+    document.getElementById("areasList").innerHTML = rows.map(r => `
+      <div class="area-row" onclick="flyToArea('${r.id}', ${r.lat}, ${r.lng})">
+        <div class="area-row-name">${r.name}</div>
+        <div class="area-row-meta">
+          <span class="area-row-dist">${r.dist < 1 ? Math.round(r.dist * 1000) + " m away" : r.dist.toFixed(1) + " km away"}</span>
+          <span class="area-row-free ${r.free > 0 ? "ok" : "full"}">${r.free}/${r.total} free</span>
+        </div>
+      </div>
+    `).join("") || `<div class="areas-empty">No parking areas found.</div>`;
+  }
+
+  // 🅿️ Live destination status — shown in both the route panel and nav banner
+  // while a route/nav is active, refreshed on every Firebase update so a slot
+  // taken by someone else mid-drive is reflected immediately, not just at click time.
+  let activeDestinationAreaId = null;
+  let activeDestinationName = null;
+
+  function updateDestinationStatusUI() {
+    if (!activeDestinationAreaId || !latestAreas || !latestAreas[activeDestinationAreaId]) return;
+    const area = latestAreas[activeDestinationAreaId];
+
+    let counts = { bike: { free: 0, total: 0 }, car: { free: 0, total: 0 }, van: { free: 0, total: 0 } };
+    for (const s in area.slots) {
+      const slot = area.slots[s];
+      counts[slot.type].total++;
+      if (slot.status === "free") counts[slot.type].free++;
+    }
+    const chip = (icon, c) => `<span class="dest-chip ${c.free > 0 ? "ok" : "full"}">${icon} ${c.free}/${c.total}</span>`;
+    const chipsHtml = `${chip("🏍️", counts.bike)}${chip("🚗", counts.car)}${chip("🚐", counts.van)}`;
+
+    const summaryEl = document.getElementById("destStatus");
+    if (summaryEl) {
+      summaryEl.innerHTML = `<div class="dest-status-title">📍 ${activeDestinationName || ""} — live status</div><div class="dest-chips">${chipsHtml}</div>`;
+    }
+    const navEl = document.getElementById("navDestStatus");
+    if (navEl) navEl.innerHTML = chipsHtml;
+  }
 
   // ⏱️ Formats minutes as "45 min", "2h 15m", or "1d 4h" depending on scale
   function formatDuration(mins) {
@@ -764,8 +1045,20 @@
   }
 
   // 🧭 Entry point — called from a parking-area popup's "Go" button
-  window.startRoute = function (lat, lng, name) {
+  window.startRoute = function (lat, lng, name, areaId) {
     clearRoute();
+    activeDestinationAreaId = areaId || null;
+    activeDestinationName = name;
+
+    // Instant feedback — show the panel with a loading state right away instead
+    // of a silent 3-4 second wait while OSRM responds
+    document.getElementById("routeDistance").textContent = "⏳ Calculating route…";
+    document.getElementById("routeTime").textContent = "";
+    document.getElementById("vehicleEtas").innerHTML = "";
+    document.getElementById("altRoutesNote").textContent = "";
+    document.getElementById("routeSummary").style.display = "block";
+    updateDestinationStatusUI();
+
     const waypoints = [
       { latLng: L.latLng(userLocation.lat, userLocation.lng) },
       { latLng: L.latLng(lat, lng) }
@@ -846,13 +1139,18 @@
         : "";
 
     document.getElementById("routeSummary").style.display = "block";
+    updateDestinationStatusUI();
   }
 
   window.clearRoute = function () {
     routeLayers.forEach(l => map.removeLayer(l));
     routeLayers = [];
     foundRoutes = [];
+    activeDestinationAreaId = null;
+    activeDestinationName = null;
     document.getElementById("routeSummary").style.display = "none";
+    document.getElementById("destStatus").innerHTML = "";
+    document.getElementById("navDestStatus").innerHTML = "";
     stopNavigation();
   };
 
@@ -1051,6 +1349,8 @@
     if (!areas) return;
     latestAreas = areas;
     renderAreas(areas);
+    renderAreasList(areas);
+    updateDestinationStatusUI();
     fitMapToEverything();
     hideLoadingOverlay();
   });
@@ -1101,12 +1401,14 @@
       const occupancyRow = (icon, label, c) => {
         const pct = c.total > 0 ? Math.round((c.free / c.total) * 100) : 0;
         const barColor = c.free > 0 ? "#2ecc71" : "#e74c3c";
+        const countText = c.free > 0 ? `${c.free}/${c.total} free` : "FULL";
+        const countClass = c.free > 0 ? "ok" : "full";
         return `
           <div class="popup-row">
             <span class="popup-icon">${icon}</span>
             <span class="popup-label">${label}</span>
             <div class="popup-bar-track"><div class="popup-bar-fill" style="width:${pct}%; background:${barColor}"></div></div>
-            <span class="popup-count">${c.free}/${c.total}</span>
+            <span class="popup-count ${countClass}">${countText}</span>
           </div>`;
       };
 
@@ -1120,7 +1422,7 @@
 
         ${isNearest ? `<div class="recommend">⭐ RECOMMENDED (Nearest Available)</div>` : ""}
 
-        <button class="navigate-btn" onclick="startRoute(${area.lat}, ${area.lng}, '${(area.name || areaId).replace(/'/g, "")}')">
+        <button class="navigate-btn" onclick="startRoute(${area.lat}, ${area.lng}, '${(area.name || areaId).replace(/'/g, "")}', '${areaId}')">
           🧭 Go
         </button>
       `;
