@@ -453,50 +453,76 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      background: var(--navy);
+      background: linear-gradient(165deg, #1a2530 0%, #131c25 100%);
       color: white;
       border-radius: var(--radius);
-      padding: 14px 22px;
+      padding: 16px 44px 16px 20px;
       display: none;
-      min-width: 280px;
+      min-width: 300px;
       max-width: 90vw;
-      text-align: center;
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(242,169,59,0.25);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+      border-top: 3px solid var(--amber);
     }
-    .nav-banner .distance-to-turn {
+    .nav-close-btn {
+      position: absolute;
+      top: 12px; right: 12px;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.75);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-close-btn:hover { background: var(--red); color: white; }
+
+    .nav-main {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+    .nav-distance-big {
       font-family: var(--font-mono);
-      font-size: 13px;
-      color: rgba(255,255,255,0.7);
-      margin-bottom: 2px;
+      font-weight: 600;
+      font-size: 27px;
+      color: var(--amber);
+      flex-shrink: 0;
+      min-width: 62px;
+      text-shadow: 0 0 14px rgba(242,169,59,0.35);
     }
-    .nav-banner .instruction {
+    .nav-instruction-text {
       font-family: var(--font-display);
-      font-size: 18px;
       font-weight: 700;
+      font-size: 17px;
       letter-spacing: 0.2px;
+      line-height: 1.25;
     }
     .nav-banner .live-eta-nav {
       font-family: var(--font-mono);
-      font-size: 12.5px;
-      color: var(--amber);
-      margin-top: 4px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 6px;
+      margin-left: 76px;
       display: none;
     }
-    .nav-banner .stop-nav-btn {
-      margin-top: 10px;
-      background: var(--red);
-      color: white;
-      border: none;
-      border-radius: 7px;
-      padding: 7px 16px;
-      cursor: pointer;
-      font-family: var(--font-body);
-      font-weight: 600;
-      font-size: 13px;
-      transition: background 0.15s;
+    .nav-dest-status {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1);
     }
-    .nav-banner .stop-nav-btn:hover { background: #B53838; }
+    .nav-dest-status .dest-chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+    }
+    .nav-dest-status .dest-chip.ok { background: rgba(46,204,113,0.16); color: #6EE7A8; }
+    .nav-dest-status .dest-chip.full { background: rgba(231,76,60,0.16); color: #FF8A80; }
 
     .popup-body {
       margin: 10px 0;
@@ -692,11 +718,13 @@
 </div>
 
 <div class="nav-banner" id="navBanner">
-  <div class="distance-to-turn" id="navDistanceText"></div>
-  <div class="instruction" id="navInstructionText">—</div>
+  <button class="nav-close-btn" onclick="stopNavigation()" title="Stop navigation">✕</button>
+  <div class="nav-main">
+    <div class="nav-distance-big" id="navDistanceText">—</div>
+    <div class="nav-instruction-text" id="navInstructionText">—</div>
+  </div>
   <div class="live-eta-nav" id="liveEtaNav"></div>
   <div class="nav-dest-status" id="navDestStatus"></div>
-  <button class="stop-nav-btn" onclick="stopNavigation()">■ Stop Navigation</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -1185,7 +1213,7 @@
     document.getElementById("navInstructionText").textContent = formatInstruction(instr, isFirst);
     const distEl = document.getElementById("navDistanceText");
     if (typeof distMeters === "number") {
-      distEl.textContent = `In ${formatDistance(distMeters)}`;
+      distEl.textContent = formatDistance(distMeters);
       distEl.style.display = "block";
     } else {
       distEl.style.display = "none";
