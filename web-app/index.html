@@ -123,12 +123,22 @@
       color: var(--text-muted);
     }
 
-    /* 🚗 Live speed HUD badge — the signature element, styled like a car speedometer */
-    .speed-badge {
+    /* Wrapper stacks legend + speed badge with column-reverse, so whichever is
+       present sits at the bottom and others stack upward automatically —
+       impossible for them to overlap regardless of content height changes. */
+    .bottom-left-stack {
       position: absolute;
-      bottom: 78px;
+      bottom: 20px;
       left: 20px;
       z-index: 1000;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* 🚗 Live speed HUD badge — the signature element, styled like a car speedometer */
+    .speed-badge {
       background: var(--navy);
       color: var(--amber);
       border-radius: 999px;
@@ -147,10 +157,6 @@
 
     /* 🗺️ Legend */
     .legend {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      z-index: 999;
       background: var(--panel-bg);
       border-radius: 10px;
       padding: 10px 14px;
@@ -449,7 +455,7 @@
 
     .nav-banner {
       position: absolute;
-      top: 14px;
+      top: 74px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
@@ -673,14 +679,16 @@
   <div class="loading-text">Loading ParkSense…</div>
 </div>
 
-<div class="legend">
-  <div class="row"><span class="dot" style="background:#2ecc71"></span> Available</div>
-  <div class="row"><span class="dot" style="background:#e74c3c"></span> Full</div>
-  <div class="row"><span class="dot" style="background:#f1c40f"></span> Recommended</div>
-</div>
+<div class="bottom-left-stack">
+  <div class="legend">
+    <div class="row"><span class="dot" style="background:#2ecc71"></span> Available</div>
+    <div class="row"><span class="dot" style="background:#e74c3c"></span> Full</div>
+    <div class="row"><span class="dot" style="background:#f1c40f"></span> Recommended</div>
+  </div>
 
-<div class="speed-badge" id="speedBadge">
-  <span class="value" id="speedValue">0</span><span class="unit">km/h</span>
+  <div class="speed-badge" id="speedBadge">
+    <span class="value" id="speedValue">0</span><span class="unit">km/h</span>
+  </div>
 </div>
 
 <button class="fab recenter-fab" onclick="recenterMap()" title="Recenter map">🎯</button>
@@ -757,6 +765,27 @@
     document.body.appendChild(banner);
   }
 
+  // 🔒 Escapes text before inserting into innerHTML — applied to anything that
+  // isn't a fixed string we wrote ourselves (area names, search results, etc.),
+  // so a malicious/unexpected value can never execute as HTML.
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // 🅿️ Single source of truth for how slot availability is worded — used in the
+  // popup, destination status chips, and areas list, so "free" vs "FULL" is
+  // always spelled out explicitly and never relies on color alone.
+  function formatSlotStatus(free, total) {
+    return free > 0
+      ? { text: `${free}/${total} free`, cls: "ok" }
+      : { text: "FULL", cls: "full" };
+  }
+
   // 📍 User location — real browser geolocation, falls back to a default point if denied/unavailable
   let userLocation = { lat: 13.0600, lng: 80.2500 }; // fallback default
   let userMarker = null;
@@ -767,20 +796,29 @@
   let lastSpeedFix = null; // { lat, lng, time }
   const speedSamples = []; // small rolling window to smooth out GPS jitter
 
+  // Browser geolocation can drift a few meters between readings even while
+  // completely stationary (especially indoors/WiFi-based positioning). Anything
+  // smaller than this is treated as noise, not real movement.
+  const MIN_MOVEMENT_METERS = 8;
+
   function updateSpeed(pos) {
     const now = Date.now();
-    let speedKmh = null;
+    let speedKmh = 0;
 
     if (typeof pos.coords.speed === "number" && pos.coords.speed >= 0) {
-      speedKmh = pos.coords.speed * 3.6; // m/s → km/h, direct from GPS
+      // Ignore small GPS-reported speed noise under ~1.8 km/h
+      speedKmh = pos.coords.speed < 0.5 ? 0 : pos.coords.speed * 3.6;
     } else if (lastSpeedFix) {
-      const dKm = distance(lastSpeedFix.lat, lastSpeedFix.lng, pos.coords.latitude, pos.coords.longitude);
+      const dMeters = distance(lastSpeedFix.lat, lastSpeedFix.lng, pos.coords.latitude, pos.coords.longitude) * 1000;
       const dHours = (now - lastSpeedFix.time) / 3600000;
-      if (dHours > 0) speedKmh = dKm / dHours;
+      if (dMeters >= MIN_MOVEMENT_METERS && dHours > 0) {
+        speedKmh = (dMeters / 1000) / dHours;
+      }
+      // else: movement below the noise floor — treat as stationary (speedKmh stays 0)
     }
     lastSpeedFix = { lat: pos.coords.latitude, lng: pos.coords.longitude, time: now };
 
-    if (speedKmh === null || speedKmh > 180 || speedKmh < 0) return; // ignore GPS glitches
+    if (speedKmh > 180) return; // ignore absurd GPS glitches, keep previous reading
 
     speedSamples.push(speedKmh);
     if (speedSamples.length > 4) speedSamples.shift();
@@ -808,10 +846,20 @@
   if (navigator.geolocation) {
     // Continuous tracking (not one-shot) so live speed + nearest-area + in-progress
     // navigation all stay accurate as the user actually moves.
+    let lastAcceptedPosition = null; // filters GPS jitter while stationary — see MIN_MOVEMENT_METERS
+
     navigator.geolocation.watchPosition(
       pos => {
-        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        updateSpeed(pos);
+        updateSpeed(pos); // always feed the speed calc, even on rejected small movements — needed so it correctly decays toward 0
+
+        const newLat = pos.coords.latitude, newLng = pos.coords.longitude;
+        if (lastAcceptedPosition) {
+          const movedMeters = distance(lastAcceptedPosition.lat, lastAcceptedPosition.lng, newLat, newLng) * 1000;
+          if (movedMeters < MIN_MOVEMENT_METERS) return; // GPS noise while stationary — don't propagate into the UI
+        }
+        lastAcceptedPosition = { lat: newLat, lng: newLng };
+
+        userLocation = { lat: newLat, lng: newLng };
         placeUserMarker();
         fitMapToEverything();
         if (activeNavRoute) {
@@ -854,8 +902,14 @@
 
   // 🔍 Search — checks local parking area names first, then falls back to
   // OpenStreetMap's free Nominatim geocoder for general place search (no API key).
-  // Runs only on Enter/click (not per-keystroke) to stay light on the free service.
+  // Runs only on Enter/click (not per-keystroke), plus a short cooldown, to stay
+  // light on the free service — this is considerate-use throttling, not security.
+  let lastSearchTime = 0;
   window.performSearch = async function () {
+    const now = Date.now();
+    if (now - lastSearchTime < 1000) return; // ignore rapid repeat submissions
+    lastSearchTime = now;
+
     const query = document.getElementById("searchInput").value.trim();
     const resultsEl = document.getElementById("searchResults");
     if (!query) { resultsEl.style.display = "none"; return; }
@@ -894,7 +948,7 @@
     resultsEl.innerHTML = allResults.map((r, i) => `
       <div class="search-result-row" onclick="selectSearchResult(${i})">
         <span class="sr-icon">${r.type === "area" ? "🅿️" : "📍"}</span>
-        <span class="sr-name">${r.name}</span>
+        <span class="sr-name">${escapeHtml(r.name)}</span>
       </div>
     `).join("");
   };
@@ -915,8 +969,10 @@
     document.getElementById("areasPanel").classList.toggle("open");
   };
 
-  window.flyToArea = function (areaId, lat, lng) {
-    map.setView([lat, lng], 15);
+  window.flyToArea = function (areaId) {
+    const area = latestAreas && latestAreas[areaId];
+    if (!area || !area.lat || !area.lng) return;
+    map.setView([area.lat, area.lng], 15);
     if (markers[areaId]) markers[areaId].openPopup();
     document.getElementById("areasPanel").classList.remove("open");
   };
@@ -933,15 +989,17 @@
       })
       .sort((a, b) => a.dist - b.dist);
 
-    document.getElementById("areasList").innerHTML = rows.map(r => `
-      <div class="area-row" onclick="flyToArea('${r.id}', ${r.lat}, ${r.lng})">
-        <div class="area-row-name">${r.name}</div>
+    document.getElementById("areasList").innerHTML = rows.map(r => {
+      const status = formatSlotStatus(r.free, r.total);
+      return `
+      <div class="area-row" onclick="flyToArea('${escapeHtml(r.id)}')">
+        <div class="area-row-name">${escapeHtml(r.name)}</div>
         <div class="area-row-meta">
           <span class="area-row-dist">${r.dist < 1 ? Math.round(r.dist * 1000) + " m away" : r.dist.toFixed(1) + " km away"}</span>
-          <span class="area-row-free ${r.free > 0 ? "ok" : "full"}">${r.free}/${r.total} free</span>
+          <span class="area-row-free ${status.cls}">${status.text}</span>
         </div>
-      </div>
-    `).join("") || `<div class="areas-empty">No parking areas found.</div>`;
+      </div>`;
+    }).join("") || `<div class="areas-empty">No parking areas found.</div>`;
   }
 
   // 🅿️ Live destination status — shown in both the route panel and nav banner
@@ -960,12 +1018,15 @@
       counts[slot.type].total++;
       if (slot.status === "free") counts[slot.type].free++;
     }
-    const chip = (icon, c) => `<span class="dest-chip ${c.free > 0 ? "ok" : "full"}">${icon} ${c.free}/${c.total}</span>`;
+    const chip = (icon, c) => {
+      const status = formatSlotStatus(c.free, c.total);
+      return `<span class="dest-chip ${status.cls}">${icon} ${status.text}</span>`;
+    };
     const chipsHtml = `${chip("🏍️", counts.bike)}${chip("🚗", counts.car)}${chip("🚐", counts.van)}`;
 
     const summaryEl = document.getElementById("destStatus");
     if (summaryEl) {
-      summaryEl.innerHTML = `<div class="dest-status-title">📍 ${activeDestinationName || ""} — live status</div><div class="dest-chips">${chipsHtml}</div>`;
+      summaryEl.innerHTML = `<div class="dest-status-title">📍 ${escapeHtml(activeDestinationName || "")} — live status</div><div class="dest-chips">${chipsHtml}</div>`;
     }
     const navEl = document.getElementById("navDestStatus");
     if (navEl) navEl.innerHTML = chipsHtml;
@@ -997,6 +1058,7 @@
     document.getElementById("feedbackStatus").textContent = "";
   };
 
+  let lastFeedbackTime = 0;
   window.submitFeedback = function () {
     const text = document.getElementById("feedbackText").value.trim();
     const statusEl = document.getElementById("feedbackStatus");
@@ -1006,11 +1068,20 @@
       statusEl.textContent = "Please write something first.";
       return;
     }
+    if (Date.now() - lastFeedbackTime < 5000) {
+      statusEl.style.color = "var(--red)";
+      statusEl.textContent = "Please wait a few seconds before sending again.";
+      return;
+    }
     if (!db) {
       statusEl.style.color = "var(--red)";
       statusEl.textContent = "Feedback is unavailable right now.";
       return;
     }
+
+    lastFeedbackTime = Date.now();
+    const submitBtn = document.querySelector(".feedback-submit");
+    submitBtn.disabled = true;
 
     set(push(ref(db, "feedback")), { message: text, timestamp: Date.now() })
       .then(() => {
@@ -1023,7 +1094,8 @@
         console.error(err);
         statusEl.style.color = "var(--red)";
         statusEl.textContent = "Couldn't send — please try again.";
-      });
+      })
+      .finally(() => { submitBtn.disabled = false; });
   };
 
   // 🧭 Routing — using the raw OSRM router (not the full L.Routing.control UI) so we
@@ -1072,11 +1144,16 @@
     return `Continue${road}`;
   }
 
-  // 🧭 Entry point — called from a parking-area popup's "Go" button
-  window.startRoute = function (lat, lng, name, areaId) {
+  // 🧭 Entry point — called from a parking-area popup's "Go" button.
+  // Takes only the areaId (a safe Firebase key) and looks everything else up
+  // internally, rather than interpolating area name/coords into an HTML attribute.
+  window.startRoute = function (areaId) {
+    const area = latestAreas && latestAreas[areaId];
+    if (!area || !area.lat || !area.lng) return;
+
     clearRoute();
-    activeDestinationAreaId = areaId || null;
-    activeDestinationName = name;
+    activeDestinationAreaId = areaId;
+    activeDestinationName = area.name || areaId;
 
     // Instant feedback — show the panel with a loading state right away instead
     // of a silent 3-4 second wait while OSRM responds
@@ -1089,7 +1166,7 @@
 
     const waypoints = [
       { latLng: L.latLng(userLocation.lat, userLocation.lng) },
-      { latLng: L.latLng(lat, lng) }
+      { latLng: L.latLng(area.lat, area.lng) }
     ];
     osrmRouter.route(waypoints, (err, routes) => {
       if (err || !routes || !routes.length) {
@@ -1190,7 +1267,12 @@
     activeNavRoute = foundRoutes[selectedRouteIndex];
     navCurrentStepIndex = 0;
 
+    // Hide the route panel while navigating — the nav banner already shows
+    // distance, instruction, live ETA and destination status, so showing both
+    // at once is redundant clutter, not extra information.
+    document.getElementById("routeSummary").style.display = "none";
     document.getElementById("navBanner").style.display = "block";
+
     const firstInstr = activeNavRoute.instructions[0];
     const firstCoord = activeNavRoute.coordinates[firstInstr.index];
     const firstDist = firstCoord
@@ -1207,6 +1289,9 @@
     document.getElementById("navBanner").style.display = "none";
     document.getElementById("liveEtaNav").style.display = "none";
     if (window.speechSynthesis) speechSynthesis.cancel();
+    // Bring the route panel back if there's still a route to show (e.g. stopped
+    // mid-trip rather than arrived) — but not if clearRoute() already wiped it
+    if (foundRoutes.length) document.getElementById("routeSummary").style.display = "block";
   };
 
   function updateNavBanner(instr, distMeters, isFirst) {
@@ -1429,19 +1514,18 @@
       const occupancyRow = (icon, label, c) => {
         const pct = c.total > 0 ? Math.round((c.free / c.total) * 100) : 0;
         const barColor = c.free > 0 ? "#2ecc71" : "#e74c3c";
-        const countText = c.free > 0 ? `${c.free}/${c.total} free` : "FULL";
-        const countClass = c.free > 0 ? "ok" : "full";
+        const status = formatSlotStatus(c.free, c.total);
         return `
           <div class="popup-row">
             <span class="popup-icon">${icon}</span>
             <span class="popup-label">${label}</span>
             <div class="popup-bar-track"><div class="popup-bar-fill" style="width:${pct}%; background:${barColor}"></div></div>
-            <span class="popup-count ${countClass}">${countText}</span>
+            <span class="popup-count ${status.cls}">${status.text}</span>
           </div>`;
       };
 
       const popup = `
-        <b>${area.name || areaId}</b>
+        <b>${escapeHtml(area.name || areaId)}</b>
         <div class="popup-body">
           ${occupancyRow("🏍️", "Bike", counts.bike)}
           ${occupancyRow("🚗", "Car", counts.car)}
@@ -1450,7 +1534,7 @@
 
         ${isNearest ? `<div class="recommend">⭐ RECOMMENDED (Nearest Available)</div>` : ""}
 
-        <button class="navigate-btn" onclick="startRoute(${area.lat}, ${area.lng}, '${(area.name || areaId).replace(/'/g, "")}', '${areaId}')">
+        <button class="navigate-btn" onclick="startRoute('${escapeHtml(areaId)}')">
           🧭 Go
         </button>
       `;
