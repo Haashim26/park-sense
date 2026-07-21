@@ -44,8 +44,8 @@ LEDs are ON while their slot is free, and turn OFF once marked occupied.
 See `assets/screenshots/` folder.
 
 ## 🎥 Demo Videos
-- **Wokwi simulation**: [assets/videos/wokwi-parksense-record.mp4](assets/videos/wokwi-parksense-record.mp4)
-- **Real hardware**: [assets/videos/hardware-parksense-record.mp4](assets/videos/hardware-parksense-record.mp4)
+- **Wokwi simulation**: [assets/videos/wokwi-parksense-record.mp4](assets/videos/Wokwi-parksense-record.mp4)
+- **Real hardware**: [assets/videos/hardware-parksense-record.mp4](assets/videos/Hardware-parksense-record.mp4)
 
 ## 🔐 Setting Up a Fresh Deployment
 If you're cloning this repo to run your own instance (your own Firebase project, your own ESP32), here's the full setup:
