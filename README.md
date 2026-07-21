@@ -43,6 +43,10 @@ LEDs are ON while their slot is free, and turn OFF once marked occupied.
 ## 📸 Screenshots
 See `assets/screenshots/` folder.
 
+## 🎥 Demo Videos
+- **Wokwi simulation**: [assets/videos/wokwi-parksense-record.mp4](assets/videos/wokwi-parksense-record.mp4)
+- **Real hardware**: [assets/videos/hardware-parksense-record.mp4](assets/videos/hardware-parksense-record.mp4)
+
 ## 🔐 Setting Up a Fresh Deployment
 If you're cloning this repo to run your own instance (your own Firebase project, your own ESP32), here's the full setup:
 
@@ -57,9 +61,17 @@ If you're cloning this repo to run your own instance (your own Firebase project,
    - If that tab exists (older projects): copy the secret.
    - If it's not there (newer projects don't expose legacy secrets): you'd need anonymous Firebase Auth + ID token refresh instead of the current legacy-secret approach.
 
-3. **Firmware** (`firmware/`): copy `secrets.example.h` → `secrets.h`, fill in WiFi credentials + your database secret.
+3. **Firmware** (`firmware/`): copy `secrets.example.h` → `secrets.h`, fill in WiFi credentials + your database secret. `PARKING_AREA_ID` controls which area this device writes to (default `"area1"`) — see "Dual-Device Demo" below if you want a second device controlling a different area.
 
 4. **Web app** (`web-app/`): copy `config.example.js` → `config.js`, fill in your Firebase `apiKey` and `databaseURL`. (For a Netlify deploy, use environment variables instead — see below.)
+
+## 🎬 Dual-Device Demo
+The same `sketch.ino` can run on two devices at once, each controlling a different parking area — a strong way to demonstrate the live sync, since both update the same map simultaneously from independent sources:
+
+- **Real ESP32 hardware** → set `PARKING_AREA_ID "area1"` in its `secrets.h`
+- **Wokwi simulation** → paste a *separate* `secrets.h` into that Wokwi project with `PARKING_AREA_ID "area2"` instead (same WiFi/database secret, just the area differs)
+
+Run both at the same time — press a physical button on the hardware and a virtual button in Wokwi — and watch both areas update live on the same map in the same browser tab. No code changes needed beyond the one line in each device's `secrets.h`.
 
 ## 🚀 Live Speed & Dynamic ETA
 While a route is active, ParkSense tracks your real driving speed (GPS-reported where available, calculated from movement otherwise) and shows a live "at your current speed: ~X min left" estimate — recalculated continuously as you actually drive, not just a one-time static guess. Shown both as a HUD-style speed badge and inline in the navigation banner.
